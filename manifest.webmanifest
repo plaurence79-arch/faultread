@@ -1,0 +1,16 @@
+{
+  "name": "FaultRead — fault code reader",
+  "short_name": "FaultRead",
+  "description": "Photograph a machine fault code and get the meaning, the likely causes and what to try.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#121416",
+  "theme_color": "#121416",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

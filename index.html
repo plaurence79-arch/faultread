@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>FaultRead</title>
+<meta name="description" content="Photograph a machine fault code and get the meaning, the likely causes and what to try.">
+<meta name="theme-color" content="#121416">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FaultRead">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192">
+<link rel="stylesheet" href="app.css?v=1.0.0">
+</head>
+<body>
+
+<!-- ───────────── first run: API key ───────────── -->
+<section class="screen" id="screen-setup" hidden>
+  <div class="pad flow">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+      </span>
+      <span class="brand-name">FAULTREAD</span>
+    </div>
+    <h1>One thing before we start</h1>
+    <p class="lede">This app talks to Google Gemini to read your photo and write the diagnosis. It needs your own free API key. It is stored on this phone only and sent to nobody but Google.</p>
+
+    <ol class="steps">
+      <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></li>
+      <li>Sign in and press <strong>Create API key</strong></li>
+      <li>Copy it and paste it below</li>
+    </ol>
+
+    <div class="field">
+      <label for="key-input">GEMINI API KEY</label>
+      <input id="key-input" type="password" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="AIza…">
+    </div>
+
+    <p class="err" id="key-error" hidden></p>
+
+    <button class="btn btn-primary" id="key-save" type="button">Save and check it</button>
+    <button class="btn btn-quiet" id="key-skip" type="button">Skip — offline code lookup only</button>
+
+    <p class="fine">The free tier is far more than one person can use. On the free tier Google may use the data to improve their products; a paid key does not.</p>
+  </div>
+</section>
+
+<!-- ───────────── home ───────────── -->
+<section class="screen" id="screen-home" hidden>
+  <div class="pad flow">
+    <header class="row-between">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+        </span>
+        <span class="brand-name">FAULTREAD</span>
+      </div>
+      <div class="row-tight">
+        <button class="icon-btn" type="button" data-go="saved" aria-label="Saved diagnoses">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>
+        </button>
+        <button class="icon-btn" type="button" data-go="settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 14.6a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.56V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div>
+      <h1>What's the code?</h1>
+      <p class="lede">Photograph the cab display or the printout. No account, nothing to sign in to.</p>
+    </div>
+
+    <button class="tile" type="button" id="btn-scan">
+      <svg class="tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h2.5l1.3-2.2h8.4L17.5 8H20a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.6"/></svg>
+      <span class="tile-title">Scan fault code</span>
+      <span class="tile-sub">Camera opens straight away</span>
+    </button>
+
+    <button class="rowcard" type="button" id="btn-manual">
+      <svg class="rowcard-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/></svg>
+      <span class="rowcard-label">Type the code instead</span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+    </button>
+
+    <div class="row-between baseline">
+      <h2 class="eyebrow">RECENT</h2>
+      <button class="link" type="button" data-go="saved">All saved</button>
+    </div>
+    <div id="home-recent" class="flow-tight"></div>
+
+    <div class="spacer"></div>
+    <p class="fine center" id="home-foot">Standard codes are matched on this phone first.</p>
+  </div>
+</section>
+
+<!-- ───────────── details: machine + voice ───────────── -->
+<section class="screen" id="screen-details" hidden>
+  <div class="pad flow">
+    <header class="row-tight">
+      <button class="icon-btn pull" type="button" data-go="home" aria-label="Back to home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <span class="eyebrow" id="details-step">ONE MORE THING</span>
+    </header>
+
+    <div>
+      <h1>Which machine?</h1>
+      <p class="lede">The same code means different things on different iron. This is what makes the answer specific.</p>
+    </div>
+
+    <div class="shot-row" id="shot-row" hidden>
+      <img id="shot-thumb" alt="The photo you just took">
+      <div class="shot-meta">
+        <p class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg> Photo ready</p>
+        <p class="fine">The code is read from it when you press Diagnose.</p>
+        <button class="link" type="button" id="btn-retake">Retake</button>
+      </div>
+    </div>
+
+    <div class="field" id="manual-code-field" hidden>
+      <label for="manual-code">FAULT CODE</label>
+      <input id="manual-code" type="text" class="mono big" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="SPN 3251 FMI 2">
+    </div>
+
+    <button class="rowcard accent" type="button" id="btn-last-machine" hidden>
+      <svg class="rowcard-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7V3M4.2 9.6 2 7.8M19.8 9.6 22 7.8"/><path d="M5 21v-5a7 7 0 0 1 14 0v5z"/></svg>
+      <span class="rowcard-label">
+        <span class="rowcard-strong" id="last-machine-name">—</span>
+        <span class="rowcard-sub">Last machine — tap to use it</span>
+      </span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+    </button>
+
+    <div>
+      <span class="eyebrow block">MAKE</span>
+      <div class="chips" id="make-chips"></div>
+    </div>
+
+    <div class="field">
+      <label for="in-model">MODEL</label>
+      <input id="in-model" type="text" placeholder="e.g. 320 GC" autocapitalize="characters" autocorrect="off">
+    </div>
+
+    <div class="field-row">
+      <div class="field grow">
+        <label for="in-series">SERIES</label>
+        <input id="in-series" type="text" placeholder="Optional" autocapitalize="characters" autocorrect="off">
+      </div>
+      <div class="field year">
+        <label for="in-year">YEAR</label>
+        <input id="in-year" type="text" inputmode="numeric" placeholder="Optional">
+      </div>
+    </div>
+
+    <!-- voice note -->
+    <div class="voice" id="voice-block">
+      <div class="row-between baseline">
+        <span class="eyebrow">ANYTHING ELSE? SAY IT</span>
+        <span class="fine" id="voice-mode-note"></span>
+      </div>
+      <p class="fine mb">Noises, smells, when it happens, what you have already tried. It all goes into the diagnosis.</p>
+
+      <button class="mic" type="button" id="btn-mic">
+        <span class="mic-dot" id="mic-dot" aria-hidden="true"></span>
+        <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5"/></svg>
+        <span id="mic-label">Hold the mic, or tap to start</span>
+      </button>
+
+      <p class="fine" id="voice-status" hidden></p>
+
+      <label class="sr-only" for="voice-text">Extra information</label>
+      <textarea id="voice-text" rows="3" placeholder="…or type it here"></textarea>
+
+      <div class="audio-chip" id="audio-chip" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>
+        <span id="audio-chip-label">Recording attached</span>
+        <button type="button" id="audio-clear" aria-label="Remove the recording">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+    <button class="btn btn-primary" type="button" id="btn-diagnose">
+      Diagnose
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
+    </button>
+    <button class="btn btn-quiet" type="button" id="btn-skip-machine">Skip — generic answer is fine</button>
+  </div>
+</section>
+
+<!-- ───────────── analysing ───────────── -->
+<section class="screen" id="screen-working" hidden>
+  <div class="pad flow center-col">
+    <div class="spinner" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+    </div>
+    <h1 class="center" id="working-title">Working it out</h1>
+    <p class="mono accent center" id="working-code"></p>
+    <p class="fine center" id="working-machine"></p>
+
+    <ul class="progress" id="progress" role="status" aria-live="polite"></ul>
+
+    <div class="spacer"></div>
+    <p class="fine center">The photo is sent to Google Gemini to be read. Nothing is stored there.</p>
+    <button class="btn btn-quiet" type="button" data-go="home">Cancel</button>
+  </div>
+</section>
+
+<!-- ───────────── result ───────────── -->
+<section class="screen" id="screen-result" hidden>
+  <header class="bar">
+    <button class="icon-btn pull" type="button" id="result-back" aria-label="Back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="row-tight">
+      <button class="icon-btn" type="button" id="btn-share" aria-label="Share this diagnosis">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></svg>
+      </button>
+      <button class="save-btn" type="button" id="btn-save">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>
+        <span id="save-label">Save</span>
+      </button>
+    </div>
+  </header>
+  <div class="scroll pad-x flow" id="result-body"></div>
+</section>
+
+<!-- ───────────── saved ───────────── -->
+<section class="screen" id="screen-saved" hidden>
+  <div class="pad-top pad-x flow-tight">
+    <header class="row-between">
+      <button class="icon-btn pull" type="button" data-go="home" aria-label="Back to home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <h1 class="bar-title">Saved</h1>
+      <button class="icon-btn" type="button" id="btn-export" aria-label="Export all as a PDF">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></svg>
+      </button>
+    </header>
+
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg>
+      <label class="sr-only" for="saved-q">Search saved codes</label>
+      <input id="saved-q" type="search" placeholder="Code, machine or note">
+    </div>
+
+    <div class="chips" id="saved-filters"></div>
+  </div>
+  <div class="scroll pad-x flow" id="saved-list"></div>
+  <div class="dock">
+    <button class="btn btn-primary" type="button" id="btn-scan-2">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h2.5l1.3-2.2h8.4L17.5 8H20a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.6"/></svg>
+      Scan a code
+    </button>
+  </div>
+</section>
+
+<!-- ───────────── settings ───────────── -->
+<section class="screen" id="screen-settings" hidden>
+  <div class="pad flow">
+    <header class="row-tight">
+      <button class="icon-btn pull" type="button" data-go="home" aria-label="Back to home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <span class="eyebrow">SETTINGS</span>
+    </header>
+
+    <h1>Settings</h1>
+
+    <div class="field">
+      <label for="set-key">GEMINI API KEY</label>
+      <input id="set-key" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Not set">
+      <p class="fine" id="set-key-state"></p>
+    </div>
+
+    <div class="field">
+      <label for="set-model">MODEL</label>
+      <select id="set-model"></select>
+      <p class="fine">Picked automatically from what your key can reach.</p>
+    </div>
+
+    <button class="btn btn-primary" type="button" id="set-save">Save</button>
+    <p class="err" id="set-error" hidden></p>
+    <p class="ok-msg" id="set-ok" hidden>Saved.</p>
+
+    <hr>
+
+    <div class="stat-row">
+      <span>Saved diagnoses</span>
+      <strong id="set-count">0</strong>
+    </div>
+    <button class="btn btn-quiet danger" type="button" id="set-wipe">Delete everything on this phone</button>
+
+    <hr>
+    <p class="fine">Your key and every saved diagnosis live in this browser's storage on this phone. There is no server and no account. Deleting the app from the home screen or clearing Safari's data for this site removes them for good.</p>
+    <p class="fine" id="set-version"></p>
+  </div>
+</section>
+
+<input type="file" id="file-input" accept="image/*" capture="environment" hidden>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="app.js?v=1.0.0" type="module"></script>
+</body>
+</html>
