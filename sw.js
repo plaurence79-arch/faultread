@@ -1,5 +1,5 @@
 /* Offline shell. Bump CACHE when the app files change. */
-const CACHE = 'faultread-v1';
+const CACHE = 'faultread-v2';
 const SHELL = [
   './',
   'index.html',
@@ -7,9 +7,9 @@ const SHELL = [
   'app.js?v=1.0.0',
   'codes.json',
   'manifest.webmanifest',
-  'icons/icon-180.png',
-  'icons/icon-192.png',
-  'icons/icon-512.png'
+  'icon-180.png',
+  'icon-192.png',
+  'icon-512.png'
 ];
 
 self.addEventListener('install', (e) => {
