@@ -1,10 +1,10 @@
 /* Offline shell. Bump CACHE when the app files change. */
-const CACHE = 'faultread-v2';
+const CACHE = 'faultread-v3';
 const SHELL = [
   './',
   'index.html',
-  'app.css?v=1.0.0',
-  'app.js?v=1.0.0',
+  'app.css?v=1.0.1',
+  'app.js?v=1.0.1',
   'codes.json',
   'manifest.webmanifest',
   'icon-180.png',

@@ -1,7 +1,7 @@
 /* FaultRead — photograph a machine fault code, get the meaning and what to try.
    Everything runs in the browser. No server, no account.                      */
 
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 
 const LS = {
   key: 'fr.apiKey',
@@ -10,13 +10,9 @@ const LS = {
   seen: 'fr.seenSetup'
 };
 
-const PREFERRED_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-flash-latest',
-  'gemini-2.0-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.0-flash-lite'
-];
+// Google retires models for new keys without warning, so never hard-code a
+// favourite. This is only the last resort if listing the models fails.
+const FALLBACK_MODEL = 'gemini-flash-latest';
 
 const MAKES = ['Cat', 'Komatsu', 'JCB', 'Hitachi', 'Volvo', 'Kubota', 'John Deere', 'Case', 'Takeuchi', 'Other'];
 
@@ -234,12 +230,34 @@ async function listModels(key) {
     .map((m) => m.name.replace(/^models\//, ''));
 }
 
+/** Newest stable Flash model the key can actually reach. */
 function pickModel(available) {
-  for (const want of PREFERRED_MODELS) {
-    if (available.includes(want)) return want;
-  }
-  const flash = available.find((m) => m.includes('flash') && !m.includes('thinking'));
-  return flash || available[0] || PREFERRED_MODELS[0];
+  const ranked = available
+    .filter((m) => m.startsWith('gemini-') && m.includes('flash'))
+    .map((m) => {
+      const v = m.match(/gemini-(\d+)(?:\.(\d+))?/);
+      return {
+        name: m,
+        unstable: /preview|exp|thinking|\d{4}/.test(m) ? 1 : 0,
+        lite: /lite/.test(m) ? 1 : 0,
+        version: v ? Number(v[1]) * 1000 + Number(v[2] || 0) : 0,
+        latest: /-latest$/.test(m) ? 1 : 0
+      };
+    })
+    .sort((a, b) =>
+      a.unstable - b.unstable ||
+      a.lite - b.lite ||
+      b.version - a.version ||
+      b.latest - a.latest ||
+      a.name.length - b.name.length);
+
+  return (ranked[0] && ranked[0].name) || available[0] || FALLBACK_MODEL;
+}
+
+/** A retirement error names its replacement — "use models/gemini-X instead". */
+function suggestedModel(message, current) {
+  const names = String(message).match(/models\/gemini-[A-Za-z0-9._-]+/g) || [];
+  return names.map((n) => n.replace('models/', '')).find((n) => n !== current) || null;
 }
 
 function apiError(res, body) {
@@ -250,6 +268,9 @@ function apiError(res, body) {
   if (res.status === 403) return new Error('That key is not allowed to use this API. Create a fresh one in AI Studio.');
   if (res.status === 429) return new Error('Free tier limit reached for now. Give it a minute and try again.');
   if (res.status === 503) return new Error('Google is busy. Try again in a moment.');
+  if (res.status === 404 || /no longer available|not found/i.test(msg)) {
+    return new Error('That model has been retired and no replacement was offered. Pick another in Settings.');
+  }
   return new Error(msg || `Request failed (${res.status}).`);
 }
 
@@ -264,15 +285,35 @@ async function callGemini({ key, model, parts }) {
     }
   };
 
+  let current = model || FALLBACK_MODEL;
+  let swapped = false;
   let res, json;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    res = await fetch(`${API}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    res = await fetch(`${API}/models/${encodeURIComponent(current)}:generateContent?key=${encodeURIComponent(key)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     json = await res.json().catch(() => ({}));
     if (res.ok) break;
+
+    const msg = (json.error && json.error.message) || '';
+
+    // The model was retired or renamed: move to whatever is current and retry.
+    if (!swapped && (res.status === 404 || /no longer available|not found|not supported/i.test(msg))) {
+      const next = suggestedModel(msg, current)
+        || pickModel(await listModels(key).catch(() => []));
+      if (next && next !== current) {
+        current = next;
+        swapped = true;
+        app.model = next;
+        localStorage.setItem(LS.model, next);
+        toast('Switched to ' + next);
+        continue;
+      }
+    }
+
     if (res.status !== 503 && res.status !== 429) break;
     await new Promise((r) => setTimeout(r, 1200));
   }
@@ -695,7 +736,7 @@ async function runDiagnosis() {
     if (app.audio && !notes) lines.push('The operator has also recorded a spoken note. Listen to it and use it.');
     parts.push({ text: lines.join('\n') });
 
-    const result = await callGemini({ key: app.key, model: app.model || PREFERRED_MODELS[0], parts });
+    const result = await callGemini({ key: app.key, model: app.model || FALLBACK_MODEL, parts });
 
     // Second look at the local table now that we know what was read.
     const readHit = classify(result.codeRead || typed, table);
@@ -1258,7 +1299,10 @@ async function renderSettings() {
     try {
       const models = await listModels(app.key);
       sel.textContent = '';
-      models.filter((m) => m.includes('flash') || m.includes('pro')).forEach(add);
+      const usable = models.filter((m) => m.includes('flash') || m.includes('pro'));
+      const best = pickModel(usable);
+      // Best first, so the obvious choice is the one already selected.
+      [best, ...usable.filter((m) => m !== best)].forEach(add);
       if (!models.includes(app.model) && app.model) add(app.model);
     } catch (e) { /* keep what we have */ }
   }
